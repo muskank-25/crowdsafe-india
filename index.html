@@ -1,0 +1,151 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CrowdSafe India · crowd control</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e1621;--panel:#141f2d;--raise:#1b2a3c;--line:#2a3b50;--ink:#e8edf3;--mut:#8fa1b5;
+--calm:#3fb8a5;--busy:#e8b13a;--crowd:#f07a2b;--crit:#e5384f;--hold:#a78bfa}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 'Hind Siliguri',system-ui,sans-serif;color:var(--ink);background:var(--bg);display:grid;grid-template-columns:min(450px,100vw) 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+header{padding:16px 18px 10px}h1{font-size:23px;margin:0;font-weight:700;letter-spacing:.2px}
+header p{margin:2px 0 0;color:var(--mut);font-size:13px}#clk{color:var(--ink);font-weight:600}
+nav{display:flex;padding:0 10px;border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:0;padding:9px 11px;font:inherit;font-weight:500;color:var(--mut);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+nav button.on{color:var(--ink);border-color:var(--crowd)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--busy);outline-offset:2px}
+section{padding:14px 18px;overflow:auto;flex:1;display:none}section.on{display:block}
+.kp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.k{background:var(--raise);border-radius:6px;padding:8px 10px}.k small{color:var(--mut);display:block;font-size:12px}.k b{font-size:22px;font-weight:600}
+.btn{background:var(--ink);color:var(--bg);border:0;border-radius:6px;padding:7px 12px;font:inherit;font-weight:600;cursor:pointer}
+.btn.alt{background:var(--raise);color:var(--ink);border:1px solid var(--line)}
+select,input[type=search]{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--raise);color:var(--ink);max-width:100%}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}.ctl label{color:var(--mut);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}th{color:var(--mut);font-weight:500}
+tr.row{cursor:pointer}tr.row:hover{background:var(--raise)}
+.bar{height:6px;background:var(--raise);border-radius:3px;min-width:50px;margin-top:3px}.bar i{display:block;height:100%;border-radius:3px}
+.chip{font-size:11.5px;padding:1px 8px;border-radius:9px;background:var(--raise);border:1px solid var(--line)}
+.chip.METERED{border-color:var(--hold);color:var(--hold)}.chip.CLOSED{background:var(--crit);border-color:var(--crit);color:#fff}
+#ban{display:none;background:var(--crit);color:#fff;padding:9px 18px;font-weight:600}#alog{font-size:13px;margin-top:6px}#alog div{padding:3px 0;border-bottom:1px solid var(--line)}#alog .danger{color:#ff8a98}#alog .warning{color:var(--crowd)}
+.mut{color:var(--mut)}h3{margin:18px 0 6px;font-size:15px}
+.act{border-left:4px solid var(--hold);background:var(--raise);border-radius:0 6px 6px 0;padding:8px 12px;margin:10px 0}.act.CLOSED{border-color:var(--crit)}.act.OPEN{border-color:var(--crowd)}
+.act p{margin:3px 0;font-size:13.5px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}.cmp .k b{font-size:17px}.cmp .k.good{border-left:3px solid var(--calm)}.cmp .k.bad{border-left:3px solid var(--crit)}
+#map{height:100vh;background:#0b121b}.leaflet-container{font-family:inherit}
+.pulse{animation:pl 1.4s ease-out infinite}@keyframes pl{0%{stroke-opacity:.9;stroke-width:3}100%{stroke-opacity:0;stroke-width:22}}
+@media(prefers-reduced-motion:reduce){.pulse{animation:none}}
+@media(max-width:800px){body{grid-template-columns:1fr;grid-template-rows:50vh 50vh}#map{grid-row:1;height:50vh}aside{grid-row:2;border:0}}
+</style></head><body>
+<aside>
+<header><h1>CrowdSafe India</h1><select id="site" aria-label="Place" style="margin-top:6px;width:100%"></select><p><span id="day"></span> · <span id="clk"></span> simulated time · density is people per m²</p></header>
+<div id="ban" role="alert" aria-live="assertive"></div>
+<nav role="tablist"><button class="on" data-t="live">Live crowd</button><button data-t="plan">Action plan</button><button data-t="fc">Next 3 hours</button><button data-t="visit">Visit safely</button><button data-t="about">About</button></nav>
+
+<section id="s-live" class="on">
+ <div class="kp"><div class="k"><small>People inside</small><b id="kPpl">–</b></div><div class="k"><small>Crowded (≥3)</small><b id="kWarn">–</b></div><div class="k"><small>Critical (≥4)</small><b id="kCrit">–</b></div></div>
+ <div class="ctl"><label for="dsel">Day / occasion</label><select id="dsel"></select>
+  <label><input type="checkbox" id="auto"> Auto-control gates</label>
+  <label for="spd">Speed</label><select id="spd"><option value="1">Real time</option><option value="10">Slow 10x</option><option value="30">Normal 30x</option><option value="120">Fast 120x</option></select></div>
+ <div class="ctl"><label><input type="checkbox" id="vo"> Voice alerts</label><select id="vl" aria-label="Voice language"><option value="en">English</option><option value="hi">हिन्दी</option><option value="bn">বাংলা</option></select><button class="btn alt" onclick="testVoice()">Test voice</button></div>
+ <div id="vnote" class="mut" style="font-size:12px"></div>
+ <input type="search" id="q" placeholder="Search venue" style="width:100%" aria-label="Search venues">
+ <table id="tb" style="margin-top:8px"></table>
+ <h3>Demo and alerts</h3>
+ <div class="ctl"><select id="pb" aria-label="Venue"></select><button class="btn alt" onclick="surge()">Simulate a crowd surge</button></div>
+ <div class="ctl"><select id="rt" aria-label="Alert type"><option>crush risk</option><option>blocked exit</option><option>panic</option><option>medical emergency</option></select><button class="btn alt" onclick="sendReport()">Raise alert</button><button class="btn alt" onclick="clearAlerts()">Clear alerts</button><button class="btn alt" onclick="resetAll()">Reset this place</button></div>
+ <div id="rl" class="mut" style="font-size:13px"></div>
+ <h3>Alert log</h3><div id="alog" class="mut">No alerts yet.</div>
+</section>
+
+<section id="s-plan">
+ <p class="mut" style="margin-top:0">Reads the next two hours and decides, venue by venue, whether to keep entry open, let in one-in-one-out, or stop entry and send people elsewhere.</p>
+ <div class="ctl"><button class="btn" onclick="doPlan()">Compute plan</button><button class="btn alt" onclick="applyPlan()">Apply gate controls</button></div>
+ <div id="cmp"></div><div id="acts"></div>
+</section>
+
+<section id="s-fc"><p class="mut" style="margin-top:0">If nobody intervenes, versus the controller above, over the next 3 hours.</p>
+ <canvas id="c1" height="190"></canvas><canvas id="c2" height="190" style="margin-top:14px"></canvas><div id="rank"></div></section>
+
+<section id="s-visit"><p class="mut" style="margin-top:0">Pick a start point (use your location, or click the map) and get a walking route through venues that are calm now and expected to stay calm.</p>
+ <div class="ctl"><button class="btn alt" onclick="locate()">Use my location</button><label for="nst">Stops</label><select id="nst"><option>3</option><option selected>4</option><option>5</option><option>6</option></select><button class="btn" onclick="doRoute()">Plan my route</button></div>
+ <div id="vr" class="mut">Click the map to set your start.</div></section>
+
+<section id="s-about">
+ <p><b>Data.</b> <span id="src"></span></p><p><b>Routing.</b> <span id="rmode"></span>.</p>
+ <p><b>Model.</b> Each venue is a small queueing system: arrivals follow this place's daily peaks and the chosen day or occasion, people stay for a typical visit time (longer when crowded, because exits slow down), and the gate limits entry. The forecast runs 40 noisy futures with sudden rushes, so it gives a chance of reaching 4/m² and a bad-case band. The controller acts on density now, in 20 minutes, and on that chance. A 0-100 risk score shows what drives each venue's risk. Real counts sent to /api/telemetry make the model correct its own arrival estimate.</p>
+ <p><b>Assumed.</b> Locations are approximate; areas, gate widths, popularity, visit times and the 2 / 3 / 4 people per m² thresholds are placeholders. Replace them with surveyed values and police guidance. Send real counts to <code>POST /api/telemetry</code>.</p>
+ <p class="mut">This is a decision-support prototype, not a substitute for trained crowd managers and the local authority.</p></section>
+</aside>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const map=L.map('map').setView([22.55,88.36],5);
+let SITE='';
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19,attribution:'© OpenStreetMap · © CARTO'}).addTo(map);
+const LC={calm:'#3fb8a5',busy:'#e8b13a',crowded:'#f07a2b',critical:'#e5384f'},GC={OPEN:null,METERED:'#a78bfa',CLOSED:'#ffffff'};
+let mk={},pulse={},exm=[],last=null,over=[],start=null,startMk=null,charts={};
+const q2=u=>SITE?u+(u.includes('?')?'&':'?')+'site='+SITE:u,j=async(u,o)=>(await fetch(q2(u),o)).json(),post=(u,b)=>j(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...(b||{}),site:SITE})});
+let vSeq=null,alog=[],banT=0;
+const VL={en:'en-IN',hi:'hi-IN',bn:'bn-IN'},TEST={en:'Voice alerts are on.',hi:'आवाज़ अलर्ट चालू हैं।',bn:'ভয়েস সতর্কতা চালু আছে।'};
+function beep(sev){try{const c=window._ac||(window._ac=new(window.AudioContext||window.webkitAudioContext)());let t=c.currentTime;const n=sev=='danger'?4:2;for(let i=0;i<n;i++){const o=c.createOscillator(),g=c.createGain();o.type='square';o.frequency.value=i%2?900:650;g.gain.value=.12;o.connect(g);g.connect(c.destination);o.start(t+i*.22);o.stop(t+i*.22+.2)}}catch(e){}}
+function say(text,sev){if(!$('vo').checked||!window.speechSynthesis)return;beep(sev);const lang=VL[$('vl').value],u=new SpeechSynthesisUtterance(text);u.lang=lang;
+ const v=speechSynthesis.getVoices().find(x=>x.lang.replace('_','-').toLowerCase().startsWith(lang.slice(0,2)));if(v)u.voice=v;
+ $('vnote').textContent=v||$('vl').value=='en'?'':'This device has no voice for this language, so it may read it badly. Add one in the system settings, or use English.';
+ u.rate=.95;if(sev=='danger')speechSynthesis.cancel();setTimeout(()=>speechSynthesis.speak(u),sev=='danger'?950:480)}
+const testVoice=()=>say(TEST[$('vl').value],'warning');
+$('vo').onchange=e=>{if(e.target.checked)testVoice();else speechSynthesis&&speechSynthesis.cancel()};$('vl').onchange=()=>{vSeq=null};
+function addLog(e){alog.unshift(e);alog=alog.slice(0,8);$('alog').innerHTML=alog.map(x=>`<div class="${x.sev}">${esc(x.at)} · ${esc(x.text)}</div>`).join('');
+ if(e.sev=='danger'){$('ban').textContent='🚨 '+e.text;$('ban').style.display='block';banT=Date.now()}}
+setInterval(()=>{if(banT&&Date.now()-banT>10000){$('ban').style.display='none';banT=0}},1000);
+async function pollEvents(){const sw=SITE,r=await j('/api/events?lang='+$('vl').value+(vSeq==null?'':'&since='+vSeq));if(sw!==SITE)return;
+ if(vSeq==null){vSeq=r.seq;return}vSeq=r.seq;r.events.forEach(e=>{addLog(e);if(e.sev!='info'||e.code=='closed')say(e.text,e.sev)})}
+const resetView=()=>{vSeq=null;alog=[];$('alog').textContent='No alerts yet.';$('ban').style.display='none';Object.values(mk).forEach(m=>map.removeLayer(m));Object.values(pulse).forEach(m=>map.removeLayer(m));exm.forEach(m=>map.removeLayer(m));mk={};pulse={};exm=[];clear();window.fit=0;last=null;$('pb').innerHTML='';$('dsel').innerHTML='';$('acts').innerHTML='';$('cmp').innerHTML='';$('vr').textContent='Click the map to set your start.';start=null;if(startMk){map.removeLayer(startMk);startMk=null}};
+const clear=()=>{over.forEach(x=>map.removeLayer(x));over=[]},add=x=>{x.addTo(map);over.push(x);return x};
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,section').forEach(e=>e.classList.remove('on'));b.classList.add('on');$('s-'+b.dataset.t).classList.add('on');if(b.dataset.t=='fc')forecast()});
+$('q').oninput=()=>last&&table();
+$('site').onchange=async e=>{SITE=e.target.value;resetView();await refresh()};$('spd').onchange=e=>post('/api/scenario',{speed:+e.target.value});$('dsel').onchange=e=>post('/api/scenario',{day:e.target.value});$('auto').onchange=e=>post('/api/scenario',{auto:e.target.checked});
+map.on('click',e=>{if($('s-visit').classList.contains('on'))setStart(e.latlng.lat,e.latlng.lng)});
+function table(){const q=$('q').value.toLowerCase();
+ $('tb').innerHTML='<tr><th>Venue</th><th>People/m²</th><th>Risk</th><th>Gate</th><th>Wait</th></tr>'+[...last.venues].sort((a,b)=>b.density-a.density).filter(p=>(p.name+p.id).toLowerCase().includes(q)).map(p=>
+ `<tr class="row" onclick="goTo('${p.id}')"><td>${esc(p.name)}${p.flagged?' ⚑':''}</td><td><b style="color:${LC[p.level]}">${p.density.toFixed(1)}</b><div class="bar"><i style="width:${Math.min(100,p.density/5*100)}%;background:${LC[p.level]}"></i></div></td><td title="${esc((p.risk_why||[]).join(', '))}"><b>${p.risk}</b></td><td><span class="chip ${p.gate}">${p.gate.toLowerCase()}</span></td><td class="mut">${p.wait_min?p.wait_min+' min':'–'}</td></tr>`).join('')}
+function goTo(id){const p=last.venues.find(x=>x.id==id);map.setView([p.lat,p.lon],16);mk[id].openPopup()}
+async function refresh(){const sw=SITE,d=await j('/api/venues');if(sw!==SITE||d.site!==SITE)return;last=d;$('clk').textContent=d.sim_time;$('day').textContent=d.day;$('auto').checked=d.auto;if(document.activeElement!==$('spd'))$('spd').value=[1,10,30,120].reduce((a,b)=>Math.abs(b-d.speed)<Math.abs(a-d.speed)?b:a);
+ d.venues.forEach(p=>{const g=GC[p.gate],o={radius:11,color:g||'#0e1621',weight:g?4:2,dashArray:p.gate=='METERED'?'4 3':null,fillColor:LC[p.level],fillOpacity:.95},
+  tip=`<b>${esc(p.name)}</b><br>${p.count.toLocaleString()} inside · ${p.density.toFixed(1)} people/m² (${p.level})<br>Gate: ${p.gate.toLowerCase()} · ${p.queue.toLocaleString()} waiting${p.wait_min?' (~'+p.wait_min+' min)':''}<br>Arriving ~${p.arr_min}/min${p.last_report?'<br>Alert: '+esc(p.last_report):''}`;
+  if(!mk[p.id])mk[p.id]=L.circleMarker([p.lat,p.lon],o).addTo(map).bindPopup(tip);else mk[p.id].setStyle(o).setPopupContent(tip);
+  if(p.level=='critical'&&!pulse[p.id]){pulse[p.id]=L.circleMarker([p.lat,p.lon],{radius:12,color:LC.critical,fill:false,interactive:false,className:'pulse'}).addTo(map)}
+  if(p.level!='critical'&&pulse[p.id]){map.removeLayer(pulse[p.id]);delete pulse[p.id]}});
+ if(!window.fit){window.fit=1;map.fitBounds(L.latLngBounds(d.venues.map(p=>[p.lat,p.lon])).pad(.15));
+  d.exits.forEach(x=>exm.push(L.circleMarker([x.lat,x.lon],{radius:6,color:'#e8edf3',weight:2,fillColor:'#0e1621',fillOpacity:1}).addTo(map).bindTooltip(esc(x.name))));
+  d.venues.forEach(p=>$('pb').add(new Option(p.name,p.id)));$('rmode').textContent=d.routing;$('src').textContent=`${d.venues.length} venues and ${d.exits.length} exits loaded from ${d.source}.`;
+  d.days.forEach(x=>$('dsel').add(new Option(x,x)))}
+ $('dsel').value=d.day;$('kPpl').textContent=d.totals.people.toLocaleString();$('kWarn').textContent=d.totals.crowded+d.totals.critical;$('kCrit').textContent=d.totals.critical;
+ pollEvents();$('rl').innerHTML=d.reports.slice(-3).map(r=>`${r.at} ${esc(r.type)}: ${esc(r.name)}`).join('<br>');table()}
+const surge=()=>post('/api/scenario',{venue_id:$('pb').value,surge:.6}).then(refresh);
+const sendReport=()=>post('/api/report',{venue_id:$('pb').value,type:$('rt').value}).then(refresh);
+const clearAlerts=()=>post('/api/clear_alert',{}).then(refresh);
+async function resetAll(){await post('/api/reset');resetView();refresh()}
+async function doPlan(){const p=await j('/api/plan');clear();const u=p.uncontrolled,c=p.controlled;
+ $('cmp').innerHTML=`<p class="mut" style="margin:6px 0">Chance some venue reaches 4/m² within 2 h: <b>${Math.round(p.p_any_uncontrolled*100)}%</b> without controls, <b>${Math.round(p.p_any_controlled*100)}%</b> with controls.</p><div class="cmp"><div class="k bad"><small>No intervention</small><b>${u.peak_density}/m² peak</b><small>${u.pandals_critical} venue(s) critical · ${u.danger_person_min.toLocaleString()} person-min above 4/m²</small></div>
+ <div class="k good"><small>With controls</small><b>${c.peak_density}/m² peak</b><small>${c.pandals_critical} venue(s) critical · ${c.danger_person_min.toLocaleString()} person-min above 4/m²</small></div></div>`;
+ $('acts').innerHTML=p.actions.map(a=>`<div class="act ${a.gate}"><b>${esc(a.name)}</b> <span class="chip ${a.gate}">${a.gate=='OPEN'?'watch':a.gate.toLowerCase()}</span>
+ <p>${esc(a.why)}${a.to_crit_min?` · reaches 4/m² in ~${a.to_crit_min} min if left alone`:''}</p><p class="mut">Risk ${a.risk}/100${a.risk_why.length?' · '+esc(a.risk_why.join(', ')):''}</p><p><b>${a.officers}</b> of ${p.n_officers} officers here · ${esc(a.message)}</p>
+ ${a.alternates.length?`<p class="mut">Divert to ${a.alternates.map(x=>`${esc(x.name)} (${x.walk_min} min, ${x.density}/m²)`).join(' or ')}</p>`:'<p class="mut">No calm venue within walking distance.</p>'}
+ ${a.exit?`<p class="mut">Dispersal exit: ${esc(a.exit.name)}, ${a.exit.km} km</p>`:''}</div>`).join('')||'<p class="mut">No venue needs action right now.</p>';
+ p.actions.forEach(a=>{if(a.divert_path.length)add(L.polyline(a.divert_path,{color:'#5eb1ff',weight:4,dashArray:'8 6'}));if(a.exit)add(L.polyline(a.exit.path,{color:'#e8edf3',weight:3,dashArray:'2 7'}))})}
+async function applyPlan(){await post('/api/apply');refresh();doPlan()}
+async function forecast(){const f=await j('/api/forecast'),L2=f.band_unc.map(x=>x.t),mk2=(id,cfg)=>{charts[id]&&charts[id].destroy();charts[id]=new Chart($(id),cfg)},
+ tx='#8fa1b5',opt=t=>({plugins:{title:{display:true,text:t,color:'#e8edf3'},legend:{labels:{color:tx}}},scales:{x:{ticks:{color:tx,maxTicksLimit:7},grid:{color:'#2a3b50'}},y:{ticks:{color:tx},grid:{color:'#2a3b50'},beginAtZero:true}}});
+ mk2('c1',{type:'line',data:{labels:L2,datasets:[{label:'no intervention (median)',data:f.band_unc.map(x=>x.p50),borderColor:'#e5384f',tension:.3,pointRadius:0},{label:'no intervention (bad case)',data:f.band_unc.map(x=>x.p90),borderColor:'#e5384f',borderDash:[5,4],tension:.3,pointRadius:0},{label:'with controls (median)',data:f.band_ctl.map(x=>x.p50),borderColor:'#3fb8a5',tension:.3,pointRadius:0},{label:'with controls (bad case)',data:f.band_ctl.map(x=>x.p90),borderColor:'#3fb8a5',borderDash:[5,4],tension:.3,pointRadius:0}]},options:opt('Busiest venue, people per m² (median and bad case)')});
+ mk2('c2',{type:'line',data:{labels:L2,datasets:[{label:'no intervention',data:f.unc.map(x=>x.crit),borderColor:'#e5384f',stepped:true,pointRadius:0},{label:'with controls',data:f.ctl.map(x=>x.crit),borderColor:'#3fb8a5',stepped:true,pointRadius:0}]},options:opt('Venues above 4 people per m²')});
+ $('rank').innerHTML='<h3>Likeliest trouble spots</h3><table><tr><th>Venue</th><th>Now</th><th>+30 min</th><th>Peak</th><th>Chance ≥4 in 1 h</th></tr>'+f.rank.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.now}</td><td>${r.d30}</td><td><b style="color:${r.peak>=4?'#e5384f':r.peak>=3?'#f07a2b':'inherit'}">${r.peak}</b></td><td>${Math.round(r.p60*100)}%</td></tr>`).join('')+'</table>'}
+function setStart(lat,lon){start=[lat,lon];if(startMk)map.removeLayer(startMk);startMk=L.marker(start).addTo(map).bindTooltip('Start');$('vr').textContent='Start set. Press Plan my route.'}
+function locate(){navigator.geolocation?navigator.geolocation.getCurrentPosition(p=>{setStart(p.coords.latitude,p.coords.longitude);map.setView(start,15)},()=>$('vr').textContent='Location is blocked. Click the map to set your start instead.'):$('vr').textContent='Location is not available. Click the map instead.'}
+async function doRoute(){if(!start){$('vr').textContent='Set a start point first: click the map.';return}
+ const r=await j(`/api/route?lat=${start[0]}&lon=${start[1]}&n=${$('nst').value}`);clear();if(r.path.length)add(L.polyline([start,...r.path],{color:'#3fb8a5',weight:5,opacity:.9}));
+ $('vr').innerHTML=(r.stops.length?`<p><b>${r.stops.length} stops · ${r.km} km · about ${r.walk_min} min walking</b></p><table>${r.stops.map((s,i)=>`<tr><td>${i+1}</td><td>${esc(s.name)}</td><td>${s.density}/m²</td><td class="mut">+${s.walk_min} min</td></tr>`).join('')}</table>`:'<p>No calm venue is reachable right now. Try again in a few minutes.</p>')
+ +(r.skipped.length?`<p class="mut">Avoided for now: ${r.skipped.map(s=>esc(s.name)).join(', ')}</p>`:'')}
+(async()=>{const d=await fetch('/api/sites').then(r=>r.json());d.sites.forEach(x=>$('site').add(new Option(x.title,x.key)));SITE=d.default;$('site').value=SITE;await refresh();setInterval(()=>last&&refresh(),2000)})();
+</script></body></html>

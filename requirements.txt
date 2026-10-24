@@ -1,0 +1,7 @@
+streamlit>=1.50
+pandas
+pydeck
+flask>=3.0
+networkx>=3.0
+gunicorn>=21.2
+gTTS>=2.5
