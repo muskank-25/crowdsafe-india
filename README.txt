@@ -1,5 +1,5 @@
 CrowdSafe India - crowd safety demo for crowded places across India (SAMPLE data, simulated crowds)
-
+https://crowdsafe-india-m2gfhevd78bosash2afq3u.streamlit.app/
 1. Install:   python -m pip install -r requirements.txt
 2. Run:       streamlit run streamlit_app.py
    (or the other version:  python app.py   then open http://localhost:5000)
